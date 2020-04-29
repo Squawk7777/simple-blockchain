@@ -1,30 +1,37 @@
 package casa.squawk7777;
 
 import java.io.Serializable;
-import java.util.Date;
 
 public class Block implements Serializable {
     private Integer id;
+    private Integer complexity;
     private Long salt;
-    private Long timeStamp;
-    private Long timeSpent;
     private String currentHash;
     private String previousHash;
+    private String miner;
     private String data;
 
-    public Block(Integer id, Long salt, Long timeSpent, String currentHash, String previousHash, String data) {
+    public Block(Integer id, String currentHash) {
         this.id = id;
+        this.currentHash = currentHash;
+    }
+
+    public Block(Integer id, Integer complexity, Long salt, String currentHash, String previousHash, String miner, String data) {
+        this.id = id;
+        this.complexity = complexity;
         this.salt = salt;
-        this.timeSpent = timeSpent;
         this.currentHash = currentHash;
         this.previousHash = previousHash;
+        this.miner = miner;
         this.data = data;
-
-        this.timeStamp = new Date().getTime();
     }
 
     public Integer getId() {
         return id;
+    }
+
+    public Integer getComplexity() {
+        return complexity;
     }
 
     public Long getSalt() {
@@ -46,10 +53,10 @@ public class Block implements Serializable {
     @Override
     public String toString() {
         return "Block ID: " + id +
+                "\nComplexity: " + complexity +
                 "\nSalt: " + salt +
-                "\nTimestamp: " + timeStamp +
+                "\nMined by: " + miner +
                 "\nCurrent block hash:\n" + currentHash +
-                "\nPrevious block hash:\n" + previousHash +
-                "\nGeneration time: " + (timeSpent / 1000) + " seconds";
+                "\nPrevious block hash:\n" + previousHash;
     }
 }

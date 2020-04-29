@@ -1,5 +1,8 @@
 package casa.squawk7777;
 
+import casa.squawk7777.exceptions.CorruptedChainException;
+import casa.squawk7777.exceptions.InvalidBlockException;
+
 import java.io.File;
 import java.util.Scanner;
 
@@ -22,15 +25,24 @@ public class SimpleBlockchain {
             blockchain = new Blockchain(complexity);
         }
 
-        blockchain.setOnAddBlockEventListener(b ->
-                BlockchainUtil.saveBlockchain(BLOCKCHAIN_FILE, b));
+        //blockchain.setOnAddBlockEventListener(b ->
+        //        BlockchainUtil.saveBlockchain(BLOCKCHAIN_FILE, b));
 
-        blockchain.addBlock("a");
-        blockchain.addBlock("bb");
-        blockchain.addBlock("ccc");
-        blockchain.addBlock("dddd");
-        blockchain.addBlock("eeeee");
 
-        blockchain.printChain();
+        try {
+            blockchain.offerBlock(BlockchainUtil.generateBlock(blockchain, "M1", "a"));
+            blockchain.offerBlock(BlockchainUtil.generateBlock(blockchain, "M1", "b"));
+            blockchain.offerBlock(BlockchainUtil.generateBlock(blockchain, "M1", "c"));
+            blockchain.offerBlock(BlockchainUtil.generateBlock(blockchain, "M1", "d"));
+            blockchain.offerBlock(BlockchainUtil.generateBlock(blockchain, "M1", "e"));
+
+            blockchain.verifyChain();
+        } catch (InvalidBlockException | CorruptedChainException e) {
+            System.out.println(e.getMessage());
+        }
+
+
+
+        System.out.println(blockchain);
     }
 }

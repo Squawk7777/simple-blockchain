@@ -11,6 +11,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class BlockchainUtil {
     private static final Logger log = LoggerFactory.getLogger(BlockchainUtil.class);
@@ -37,7 +38,31 @@ public class BlockchainUtil {
         }
     }
 
-    public static String calculateHash(String input){
+    public static Block generateBlock(Blockchain blockchain, String miner, String data) {
+        Integer complexity = blockchain.getComplexity();
+        String seekingString = blockchain.getSeekingString();
+        log.debug("Seeking for hash starting with: {}", seekingString);
+
+        Block lastBlock = blockchain.getLastBlock();
+        String currentHash = "";
+        long salt = 0L;
+
+        while (!currentHash.startsWith(seekingString)) {
+            salt = ThreadLocalRandom.current().nextLong(0, Long.MAX_VALUE);
+            currentHash = calculateHash(data + complexity + salt + lastBlock.getCurrentHash());
+        }
+        log.debug("Found appropriate hash ({}) with salt: {}", currentHash, salt);
+
+        return new Block(lastBlock.getId() + 1, complexity, salt, currentHash, lastBlock.getCurrentHash(), miner, data);
+    }
+
+    private void adjustComplexity() {
+            // срабатывает при успешном добавлении блока
+            // если время последнего блока очень большое, уменьшает сложность
+            // если слишком малое, увеличивает
+    }
+
+    public static String calculateHash(String input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
