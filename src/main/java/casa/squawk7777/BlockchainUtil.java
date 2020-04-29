@@ -42,18 +42,18 @@ public class BlockchainUtil {
         Block lastBlock = blockchain.getLastBlock();
         Integer complexity = blockchain.getComplexity();
         String seekingString = blockchain.getSeekingString();
-        log.debug("Seeking for hash starting with:\n{} (previous block hash: {})", seekingString, lastBlock.getCurrentHash());
+        log.debug("Seeking for hash starting with:\n{} (previous block hash: {})", seekingString, lastBlock.getHash());
 
         String currentHash = "";
         long salt = 0L;
 
         while (!currentHash.startsWith(seekingString)) {
             salt = ThreadLocalRandom.current().nextLong(0, Long.MAX_VALUE);
-            currentHash = calculateHash(data + complexity + salt + lastBlock.getCurrentHash());
+            currentHash = calculateHash(data + complexity + salt + lastBlock.getHash());
         }
         log.debug("Found appropriate hash\n({}) with salt: {}", currentHash, salt);
 
-        return new Block(lastBlock.getId() + 1, complexity, salt, currentHash, lastBlock.getCurrentHash(), miner, data);
+        return new Block(lastBlock.getId() + 1, complexity, salt, currentHash, miner, data);
     }
 
     public static String calculateHash(String input) {

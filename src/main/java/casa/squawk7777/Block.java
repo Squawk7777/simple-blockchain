@@ -6,22 +6,20 @@ public class Block implements Serializable {
     private Integer id;
     private Integer complexity;
     private Long salt;
-    private String currentHash;
-    private String previousHash;
+    private String hash;
     private String miner;
     private String data;
 
-    public Block(Integer id, String currentHash) {
+    public Block(Integer id, String hash) {
         this.id = id;
-        this.currentHash = currentHash;
+        this.hash = hash;
     }
 
-    public Block(Integer id, Integer complexity, Long salt, String currentHash, String previousHash, String miner, String data) {
+    public Block(Integer id, Integer complexity, Long salt, String hash, String miner, String data) {
         this.id = id;
         this.complexity = complexity;
         this.salt = salt;
-        this.currentHash = currentHash;
-        this.previousHash = previousHash;
+        this.hash = hash;
         this.miner = miner;
         this.data = data;
     }
@@ -38,12 +36,8 @@ public class Block implements Serializable {
         return salt;
     }
 
-    public String getCurrentHash() {
-        return currentHash;
-    }
-
-    public String getPreviousHash() {
-        return previousHash;
+    public String getHash() {
+        return hash;
     }
 
     public String getData() {
@@ -56,7 +50,6 @@ public class Block implements Serializable {
                 "\nComplexity: " + complexity +
                 "\nSalt: " + salt +
                 "\nMined by: " + miner +
-                "\nCurrent block hash:\n" + currentHash +
-                "\nPrevious block hash:\n" + previousHash;
+                "\nCurrent block hash:\n" + hash;
     }
 }

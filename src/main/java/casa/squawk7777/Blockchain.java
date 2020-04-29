@@ -18,8 +18,8 @@ public class Blockchain implements Serializable {
     private static final Logger log = LoggerFactory.getLogger(Blockchain.class);
     private transient Consumer<Blockchain> onAddBlockEventListener;
 
-    private List<Block> chain;
-    private volatile AtomicInteger complexity;
+    private final List<Block> chain;
+    private final AtomicInteger complexity;
     private final String SEEKING_ALNUM = "0";
 
     private Long lastBlockTime;
@@ -39,7 +39,7 @@ public class Blockchain implements Serializable {
         verifyOfferedBlock(block);
         adjustComplexity();
 
-        log.info("Adding new block #{} with hash: {}", block.getId(), block.getCurrentHash());
+        log.info("Adding new block #{} with hash: {}", block.getId(), block.getHash());
         this.chain.add(block);
 
         if (Objects.nonNull(this.onAddBlockEventListener)) {
@@ -62,6 +62,13 @@ public class Blockchain implements Serializable {
         return chain.get(chain.size() - 1);
     }
 
+    public Block getBlockById(Integer id) {
+        if (id.equals(0)) {
+            return new Block(0, "0");
+        }
+        return chain.get(id - 1);
+    }
+
     public void setOnAddBlockEventListener(Consumer<Blockchain> onAddBlockEventListener) {
         this.onAddBlockEventListener = onAddBlockEventListener;
     }
@@ -71,7 +78,7 @@ public class Blockchain implements Serializable {
     }
 
     private void verifyOfferedBlock(Block block) throws InvalidBlockException {
-        log.debug("Verifying offered block with hash: {} ", block.getCurrentHash());
+        log.debug("Verifying offered block with hash: {} ", block.getHash());
         Block lastBlock = getLastBlock();
 
         Integer expectedId = lastBlock.getId() + 1;
@@ -80,15 +87,9 @@ public class Blockchain implements Serializable {
             throw new InvalidBlockException(TextConstants.HAS_INVALID_ID);
         }
 
-        String previousBlockHash = lastBlock.getCurrentHash();
-        if (!block.getPreviousHash().equals(previousBlockHash)) {
-            log.error("Block rejected. Previous block's hash ({}) differs from expected ({}))", block.getPreviousHash(), previousBlockHash);
-            throw new InvalidBlockException(TextConstants.PREVIOUS_HASH_IS_INVALID);
-        }
-
         String seekingString = getSeekingString();
-        if (!block.getCurrentHash().startsWith(seekingString)) {
-            log.error("Block rejected. Hash ({}) not starts with: {}", block.getCurrentHash(), seekingString);
+        if (!block.getHash().startsWith(seekingString)) {
+            log.error("Block rejected. Hash ({}) not starts with: {}", block.getHash(), seekingString);
             throw new InvalidBlockException(TextConstants.NOT_MEET_COMPLEXITY);
         }
 
@@ -96,11 +97,11 @@ public class Blockchain implements Serializable {
     }
 
     private void verifyBlockHash(Block block) throws InvalidBlockException {
-        String calculatedHash = BlockchainUtil.calculateHash(block.getData() + block.getComplexity() + block.getSalt() + block.getPreviousHash());
-        log.debug("Verifying block. Newly calculated / original block hash:\n{}\n{}", calculatedHash, block.getCurrentHash());
+        Block previousBlock = getBlockById(block.getId() - 1);
+        String calculatedHash = BlockchainUtil.calculateHash(block.getData() + block.getComplexity() + block.getSalt() + previousBlock.getHash());
 
-        if (!block.getCurrentHash().equals(calculatedHash)) {
-            log.error("Block rejected. Hash ({}) differs from calculated ({})", block.getCurrentHash(), calculatedHash);
+        if (!block.getHash().equals(calculatedHash)) {
+            log.error("Block rejected. Hash ({}) differs from calculated ({})", block.getHash(), calculatedHash);
             throw new InvalidBlockException(TextConstants.HASH_DIFFERS_FROM_CALCULATED);
         }
     }
@@ -120,7 +121,7 @@ public class Blockchain implements Serializable {
         log.debug("Time gap from last added block: {} seconds (complexity: {})", (currentTimeGap / 1000), complexity.get());
         if (currentTimeGap < MIN_TIME_GAP) {
             complexity.incrementAndGet();
-        } else if (currentTimeGap > MAX_TIME_GAP) {
+        } else if (currentTimeGap > MAX_TIME_GAP && complexity.get() > 0) {
             complexity.decrementAndGet();
         }
         log.debug("Complexity adjusted to: {}", complexity.get());

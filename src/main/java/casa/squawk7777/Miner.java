@@ -24,7 +24,7 @@ public class Miner extends RecursiveAction {
         try {
             blockchain.offerBlock(block);
         } catch (InvalidBlockException e) {
-            log.error("Generated invalid (possibly outdated) block: {}", e.getMessage());
+            log.error("Generated invalid (possibly late) block: {}", e.getMessage());
         }
     }
 }
