@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -27,23 +28,30 @@ public class Blockchain implements Serializable {
     private final Long MIN_TIME_GAP = 5000L;
     private final Long MAX_TIME_GAP = 30000L;
 
+    private final ReentrantLock lock;
 
     public Blockchain(Integer initialComplexity) {
         log.debug("Initializing blockchain with initial complexity at: {}", initialComplexity);
         this.complexity = new AtomicInteger(initialComplexity);
         this.chain = new ArrayList<>();
         this.lastBlockTime = System.currentTimeMillis();
+        this.lock = new ReentrantLock(true);
     }
 
-    synchronized public void offerBlock(Block block) throws InvalidBlockException {
-        verifyOfferedBlock(block);
-        adjustComplexity();
+    public void offerBlock(Block block) throws InvalidBlockException {
+        lock.lock();
+        try {
+            verifyOfferedBlock(block);
+            adjustComplexity();
 
-        log.info("Adding new block #{} with hash: {}", block.getId(), block.getHash());
-        this.chain.add(block);
+            log.info("Adding new block #{} with hash: {}", block.getId(), block.getHash());
+            this.chain.add(block);
 
-        if (Objects.nonNull(this.onAddBlockEventListener)) {
-            this.onAddBlockEventListener.accept(this);
+            if (Objects.nonNull(this.onAddBlockEventListener)) {
+                this.onAddBlockEventListener.accept(this);
+            }
+        } finally {
+            lock.unlock();
         }
     }
 
