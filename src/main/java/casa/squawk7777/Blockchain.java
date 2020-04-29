@@ -35,9 +35,8 @@ public class Blockchain implements Serializable {
         this.lastBlockTime = System.currentTimeMillis();
     }
 
-    public void offerBlock(Block block) throws InvalidBlockException {
+    synchronized public void offerBlock(Block block) throws InvalidBlockException {
         verifyOfferedBlock(block);
-
         adjustComplexity();
 
         log.info("Adding new block #{} with hash: {}", block.getId(), block.getCurrentHash());
@@ -63,14 +62,6 @@ public class Blockchain implements Serializable {
         return chain.get(chain.size() - 1);
     }
 
-    public Integer getLastId() {
-        return chain.isEmpty() ? 0 : chain.get(chain.size() - 1).getId();
-    }
-
-    public String getLastHash() {
-        return chain.isEmpty() ? "0" : chain.get(chain.size() - 1).getCurrentHash();
-    }
-
     public void setOnAddBlockEventListener(Consumer<Blockchain> onAddBlockEventListener) {
         this.onAddBlockEventListener = onAddBlockEventListener;
     }
@@ -80,24 +71,24 @@ public class Blockchain implements Serializable {
     }
 
     private void verifyOfferedBlock(Block block) throws InvalidBlockException {
-        log.debug("Verifying that block ");
+        log.debug("Verifying offered block with hash: {} ", block.getCurrentHash());
         Block lastBlock = getLastBlock();
 
         Integer expectedId = lastBlock.getId() + 1;
         if (!block.getId().equals(expectedId)) {
-            log.error("Block ID ({}) differs from expected ({})", block.getId(), expectedId);
+            log.error("Block rejected. ID ({}) differs from expected ({})", block.getId(), expectedId);
             throw new InvalidBlockException(TextConstants.HAS_INVALID_ID);
         }
 
         String previousBlockHash = lastBlock.getCurrentHash();
         if (!block.getPreviousHash().equals(previousBlockHash)) {
-            log.error("Block previous hash ({}) differs from expected ({}))", block.getPreviousHash(), previousBlockHash);
+            log.error("Block rejected. Previous block's hash ({}) differs from expected ({}))", block.getPreviousHash(), previousBlockHash);
             throw new InvalidBlockException(TextConstants.PREVIOUS_HASH_IS_INVALID);
         }
 
         String seekingString = getSeekingString();
         if (!block.getCurrentHash().startsWith(seekingString)) {
-            log.error("Block hash ({}) not starts with: {}", block.getCurrentHash(), seekingString);
+            log.error("Block rejected. Hash ({}) not starts with: {}", block.getCurrentHash(), seekingString);
             throw new InvalidBlockException(TextConstants.NOT_MEET_COMPLEXITY);
         }
 
@@ -109,7 +100,7 @@ public class Blockchain implements Serializable {
         log.debug("Verifying block. Newly calculated / original block hash:\n{}\n{}", calculatedHash, block.getCurrentHash());
 
         if (!block.getCurrentHash().equals(calculatedHash)) {
-            log.error("Block hash ({}) differs from calculated ({})", block.getCurrentHash(), calculatedHash);
+            log.error("Block rejected. Hash ({}) differs from calculated ({})", block.getCurrentHash(), calculatedHash);
             throw new InvalidBlockException(TextConstants.HASH_DIFFERS_FROM_CALCULATED);
         }
     }
@@ -126,12 +117,14 @@ public class Blockchain implements Serializable {
 
     private void adjustComplexity() {
         long currentTimeGap = System.currentTimeMillis() - lastBlockTime;
-        log.debug("Time gap for current block: {} seconds (complexity: {})", (currentTimeGap / 1000), complexity.get());
+        log.debug("Time gap from last added block: {} seconds (complexity: {})", (currentTimeGap / 1000), complexity.get());
         if (currentTimeGap < MIN_TIME_GAP) {
             complexity.incrementAndGet();
         } else if (currentTimeGap > MAX_TIME_GAP) {
             complexity.decrementAndGet();
         }
+        log.debug("Complexity adjusted to: {}", complexity.get());
+        lastBlockTime = System.currentTimeMillis();
     }
 
     @Override

@@ -39,11 +39,11 @@ public class BlockchainUtil {
     }
 
     public static Block generateBlock(Blockchain blockchain, String miner, String data) {
+        Block lastBlock = blockchain.getLastBlock();
         Integer complexity = blockchain.getComplexity();
         String seekingString = blockchain.getSeekingString();
-        log.debug("Seeking for hash starting with: {}", seekingString);
+        log.debug("Seeking for hash starting with:\n{} (previous block hash: {})", seekingString, lastBlock.getCurrentHash());
 
-        Block lastBlock = blockchain.getLastBlock();
         String currentHash = "";
         long salt = 0L;
 
@@ -51,15 +51,9 @@ public class BlockchainUtil {
             salt = ThreadLocalRandom.current().nextLong(0, Long.MAX_VALUE);
             currentHash = calculateHash(data + complexity + salt + lastBlock.getCurrentHash());
         }
-        log.debug("Found appropriate hash ({}) with salt: {}", currentHash, salt);
+        log.debug("Found appropriate hash\n({}) with salt: {}", currentHash, salt);
 
         return new Block(lastBlock.getId() + 1, complexity, salt, currentHash, lastBlock.getCurrentHash(), miner, data);
-    }
-
-    private void adjustComplexity() {
-            // срабатывает при успешном добавлении блока
-            // если время последнего блока очень большое, уменьшает сложность
-            // если слишком малое, увеличивает
     }
 
     public static String calculateHash(String input) {

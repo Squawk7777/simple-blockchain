@@ -1,15 +1,16 @@
 package casa.squawk7777;
 
 import casa.squawk7777.exceptions.CorruptedChainException;
-import casa.squawk7777.exceptions.InvalidBlockException;
 
 import java.io.File;
 import java.util.Scanner;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeUnit;
 
 public class SimpleBlockchain {
     private static final File BLOCKCHAIN_FILE = new File("blockchain.data");
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         Blockchain blockchain;
 
         if (BLOCKCHAIN_FILE.exists()) {
@@ -25,23 +26,23 @@ public class SimpleBlockchain {
             blockchain = new Blockchain(complexity);
         }
 
-        //blockchain.setOnAddBlockEventListener(b ->
-        //        BlockchainUtil.saveBlockchain(BLOCKCHAIN_FILE, b));
+        blockchain.setOnAddBlockEventListener(b ->
+                BlockchainUtil.saveBlockchain(BLOCKCHAIN_FILE, b));
 
+        ForkJoinPool forkJoinPool = ForkJoinPool.commonPool();
 
-        try {
-            blockchain.offerBlock(BlockchainUtil.generateBlock(blockchain, "M1", "a"));
-            blockchain.offerBlock(BlockchainUtil.generateBlock(blockchain, "M1", "b"));
-            blockchain.offerBlock(BlockchainUtil.generateBlock(blockchain, "M1", "c"));
-            blockchain.offerBlock(BlockchainUtil.generateBlock(blockchain, "M1", "d"));
-            blockchain.offerBlock(BlockchainUtil.generateBlock(blockchain, "M1", "e"));
-
-            blockchain.verifyChain();
-        } catch (InvalidBlockException | CorruptedChainException e) {
-            System.out.println(e.getMessage());
+        for (int i = 0; i < 10; i++) {
+            forkJoinPool.submit(new Miner(blockchain, "M" + i, String.valueOf(i)));
         }
 
+        forkJoinPool.shutdown();
+        forkJoinPool.awaitTermination(60L, TimeUnit.SECONDS);
 
+        try {
+            blockchain.verifyChain();
+        } catch (CorruptedChainException e) {
+            e.printStackTrace();
+        }
 
         System.out.println(blockchain);
     }
