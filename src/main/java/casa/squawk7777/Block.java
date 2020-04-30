@@ -1,6 +1,7 @@
 package casa.squawk7777;
 
 import java.io.Serializable;
+import java.util.Collection;
 
 public class Block implements Serializable {
     private Integer id;
@@ -8,14 +9,14 @@ public class Block implements Serializable {
     private Long salt;
     private String hash;
     private String miner;
-    private String data;
+    private Collection<String> data;
 
     public Block(Integer id, String hash) {
         this.id = id;
         this.hash = hash;
     }
 
-    public Block(Integer id, Integer complexity, Long salt, String hash, String miner, String data) {
+    public Block(Integer id, Integer complexity, Long salt, String hash, String miner, Collection<String> data) {
         this.id = id;
         this.complexity = complexity;
         this.salt = salt;
@@ -40,7 +41,7 @@ public class Block implements Serializable {
         return hash;
     }
 
-    public String getData() {
+    public Collection<String> getData() {
         return data;
     }
 
@@ -50,6 +51,7 @@ public class Block implements Serializable {
                 "\nComplexity: " + complexity +
                 "\nSalt: " + salt +
                 "\nMined by: " + miner +
-                "\nCurrent block hash:\n" + hash;
+                "\nCurrent block hash:\n" + hash +
+                "\nMessages stored: " + String.join("\n", data);
     }
 }

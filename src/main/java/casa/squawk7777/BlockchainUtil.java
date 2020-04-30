@@ -1,5 +1,6 @@
 package casa.squawk7777;
 
+import casa.squawk7777.exceptions.InvalidBlockException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,28 +33,29 @@ public class BlockchainUtil {
         log.debug("Saving blockchain to file: {}", blockchainFile);
         try (ObjectOutputStream outputStream = new ObjectOutputStream(new FileOutputStream(blockchainFile))) {
             outputStream.writeObject(blockchain);
-            log.debug("Blockchain containing {} elements successfully saved", blockchain.getSize());
+            log.debug("Blockchain containing {} blocks successfully saved", blockchain.getSize());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public static Block generateBlock(Blockchain blockchain, String miner, String data) {
-        Block lastBlock = blockchain.getLastBlock();
-        Integer complexity = blockchain.getComplexity();
-        String seekingString = blockchain.getSeekingString();
-        log.debug("Seeking for hash starting with:\n{} (previous block hash: {})", seekingString, lastBlock.getHash());
+    public static Block generateBlock(Blockchain.Challenge challenge, String miner) throws InvalidBlockException {
+        log.debug("Seeking hash for block with {} messages starting with:\n{} (previous block hash: {})",
+                challenge.getWorkload().size(), challenge.getSeekingString(), challenge.getLastHash());
 
         String currentHash = "";
         long salt = 0L;
 
-        while (!currentHash.startsWith(seekingString)) {
+        while (!currentHash.startsWith(challenge.getSeekingString())) {
+            if (challenge.isCompleted()) {
+                throw new InvalidBlockException("Generation aborted. Current challenge is completed, asking for new...");
+            }
             salt = ThreadLocalRandom.current().nextLong(0, Long.MAX_VALUE);
-            currentHash = calculateHash(data + complexity + salt + lastBlock.getHash());
+            currentHash = calculateHash(challenge.getWorkload().hashCode() + challenge.getComplexity() + salt + challenge.getLastHash());
         }
         log.debug("Found appropriate hash\n({}) with salt: {}", currentHash, salt);
 
-        return new Block(lastBlock.getId() + 1, complexity, salt, currentHash, miner, data);
+        return new Block(challenge.getId(), challenge.getComplexity(), salt, currentHash, miner, challenge.getWorkload());
     }
 
     public static String calculateHash(String input) {
