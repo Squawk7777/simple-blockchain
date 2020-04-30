@@ -8,13 +8,13 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.RecursiveAction;
 
 public class Miner extends RecursiveAction {
-    private final Logger log = LoggerFactory.getLogger(Miner.class);
+    private static final Logger log = LoggerFactory.getLogger(Miner.class);
     private final Blockchain blockchain;
-    private final String miner;
+    private final String minerTitle;
 
-    public Miner(Blockchain blockchain, String miner) {
+    public Miner(Blockchain blockchain, String minerTitle) {
         this.blockchain = blockchain;
-        this.miner = miner;
+        this.minerTitle = minerTitle;
     }
 
     @Override
@@ -30,6 +30,6 @@ public class Miner extends RecursiveAction {
             }
         }
 
-        log.debug("{}: I'm done boss!", miner);
+        log.debug("{}: I'm done boss!", minerTitle);
     }
 }

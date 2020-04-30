@@ -12,8 +12,8 @@ public class Chatter extends RecursiveAction {
     private static final Long MESSAGE_DELAY_MIN = 500L;
     private static final Long MESSAGE_DELAY_MAX = 5000L;
 
-    private Chat chat;
-    private Faker faker;
+    private transient Chat chat;
+    private transient Faker faker;
     private Integer messageLimit;
 
     public Chatter(Chat chat, Faker faker, Integer messageLimit) {
@@ -31,10 +31,11 @@ public class Chatter extends RecursiveAction {
             try {
                 chat.pushMessage(randomMessage);
 
-                Long delay = ThreadLocalRandom.current().nextLong(MESSAGE_DELAY_MIN, MESSAGE_DELAY_MAX + 1);
+                long delay = ThreadLocalRandom.current().nextLong(MESSAGE_DELAY_MIN, MESSAGE_DELAY_MAX + 1);
                 Thread.sleep(delay);
             } catch (InterruptedException e) {
                 log.debug("Thread interrupted: {}", e.getMessage(), e);
+                Thread.currentThread().interrupt();
             }
         } while (--messageLimit > 0);
     }

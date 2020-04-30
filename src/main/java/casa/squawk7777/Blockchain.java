@@ -24,18 +24,18 @@ public class Blockchain implements Serializable {
 
     private final List<Block> chain;
     private final AtomicInteger complexity;
-    private final String SEEKING_ALNUM = "0";
+    private static final String SEEKING_ALNUM = "0";
 
     private Long lastBlockTime;
     private Challenge challenge;
 
-    private final Long MIN_TIME_GAP = 5000L;
-    private final Long MAX_TIME_GAP = 30000L;
+    private static final Long MIN_TIME_GAP = 5000L;
+    private static final Long MAX_TIME_GAP = 30000L;
 
-    private final Integer chainCapacity = 10;
+    private static final Integer CHAIN_CAPACITY = 10;
 
     private final ReentrantLock offeringLock;
-    private final Integer maxComplexity = 6;
+    private static final Integer MAX_COMPLEXITY = 6;
 
     public Blockchain(Integer initialComplexity) {
         log.debug("Initializing blockchain with initial complexity at: {}", initialComplexity);
@@ -70,10 +70,7 @@ public class Blockchain implements Serializable {
     }
 
     public boolean isClosed() {
-        if (chain.size() >= chainCapacity) {
-            return true;
-        }
-        return false;
+        return chain.size() >= CHAIN_CAPACITY;
     }
 
     public void setChat(Chat chat) {
@@ -165,7 +162,7 @@ public class Blockchain implements Serializable {
     private void adjustComplexity() {
         long currentTimeGap = System.currentTimeMillis() - lastBlockTime;
         log.debug("Time gap from last added block: {} seconds (complexity: {})", (currentTimeGap / 1000), complexity.get());
-        if (currentTimeGap < MIN_TIME_GAP && complexity.get() < maxComplexity) {
+        if (currentTimeGap < MIN_TIME_GAP && complexity.get() < MAX_COMPLEXITY) {
             complexity.incrementAndGet();
         } else if (currentTimeGap > MAX_TIME_GAP && complexity.get() > 0) {
             complexity.decrementAndGet();
@@ -181,7 +178,7 @@ public class Blockchain implements Serializable {
                 .collect(Collectors.joining("\n\n"));
     }
 
-    public class Challenge {
+    public class Challenge implements Serializable {
         private final Integer id;
         private volatile boolean isCompleted;
         private final String lastHash;
