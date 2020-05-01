@@ -5,7 +5,6 @@ import com.github.javafaker.Faker;
 
 import java.io.File;
 import java.util.Random;
-import java.util.Scanner;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -17,33 +16,16 @@ public class SimpleBlockchain {
     private static final Integer CHATTERS_NUMBER = 5;
 
     public static void main(String[] args) throws InterruptedException {
-        Blockchain blockchain;
+        Chat chat = new Chat();
 
-        if (BLOCKCHAIN_FILE.exists()) {
-            blockchain = BlockchainUtil.loadBlockchain(BLOCKCHAIN_FILE);
-        } else {
-            int complexity;
-
-            try (Scanner scanner = new Scanner(System.in)) {
-                System.out.println("Enter the hash-seeking complexity value (1 - easiest, 10 - hardest):");
-
-                complexity = scanner.nextInt();
-            }
-            blockchain = new Blockchain(complexity);
-        }
-
-        //blockchain.setOnAddBlockEventListener(b ->
-        //        BlockchainUtil.saveBlockchain(BLOCKCHAIN_FILE, b));
+        Blockchain<Message> blockchain = new Blockchain<>(chat);
 
         ForkJoinPool forkJoinPool = ForkJoinPool.commonPool();
-
-        Chat chat = new Chat();
-        blockchain.setChat(chat);
 
         Faker faker = new Faker(new Random());
 
         IntStream.range(0, CHATTERS_NUMBER)
-                .forEach(i -> forkJoinPool.submit(new Chatter(chat, faker, 6)));
+                .forEach(i -> forkJoinPool.submit(new Chatter(SecurityHelper.generateKeyPair(), chat, faker, 6)));
 
         IntStream.range(0, MINERS_NUMBER)
                 .forEach(i -> forkJoinPool.submit(new Miner(blockchain, faker.funnyName().name())));
