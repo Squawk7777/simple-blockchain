@@ -4,6 +4,8 @@ import casa.squawk7777.exceptions.BlockchainException;
 import casa.squawk7777.exceptions.CorruptedChainException;
 import casa.squawk7777.exceptions.InvalidBlockException;
 import casa.squawk7777.exceptions.InvalidSignatureException;
+import casa.squawk7777.workload.WorkloadItem;
+import casa.squawk7777.workload.WorkloadSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,7 +34,7 @@ public class Blockchain<T extends WorkloadItem> {
     private final ReentrantLock offeringLock;
 
     private Long lastBlockTime;
-    private Challenge<T> challenge;
+    private Challenge challenge;
 
     public Blockchain(WorkloadSupplier<T> workloadSupplier) {
         log.debug("Initializing blockchain with initial complexity at: {}", INITIAL_COMPLEXITY);
@@ -41,7 +43,7 @@ public class Blockchain<T extends WorkloadItem> {
         chain = new ArrayList<>();
         lastBlockTime = System.currentTimeMillis();
         offeringLock = new ReentrantLock(true);
-        challenge = new Challenge<>(1, "0", complexity.get(), getSeekingString(), new HashSet<>());
+        challenge = new Challenge(1, "0", complexity.get(), getSeekingString(), new HashSet<>());
     }
 
     public void offerBlock(Block<T> block) throws InvalidBlockException, BlockchainException {
@@ -93,7 +95,7 @@ public class Blockchain<T extends WorkloadItem> {
         return chain.size();
     }
 
-    public Challenge<T> getChallenge() throws BlockchainException {
+    public Challenge getChallenge() throws BlockchainException {
         if (isClosed()) {
             throw new BlockchainException("All challenges done. Blockchain is full");
         }
@@ -104,7 +106,7 @@ public class Blockchain<T extends WorkloadItem> {
         challenge.setCompleted();
         Block<T> lastBlock = getLastBlock();
         Set<T> workload = supplier.fetchWorkload();
-        challenge = new Challenge<>(lastBlock.getId() + 1, lastBlock.getHash(), getComplexity(), getSeekingString(), workload);
+        challenge = new Challenge(lastBlock.getId() + 1, lastBlock.getHash(), getComplexity(), getSeekingString(), workload);
     }
 
     /**
@@ -169,7 +171,8 @@ public class Blockchain<T extends WorkloadItem> {
                     .orElse(0);
 
             if (lowestCurrentWorkloadId <= highestPreviousWorkloadId) {
-                throw new InvalidBlockException("Lowest Workload ID of currently verified block is lower or equals to highest workload ID of previous block in blockchain");
+                log.debug("Lowest Workload ID ({}) of currently verified block is lower or equals to highest workload ID ({}) of previous block in blockchain", lowestCurrentWorkloadId, highestPreviousWorkloadId);
+                throw new InvalidBlockException("Lowest Workload ID ({}) of currently verified block is lower or equals to highest workload ID ({}) of previous block in blockchain");
             }
 
             for (WorkloadItem workloadItem : workload) {
@@ -221,7 +224,7 @@ public class Blockchain<T extends WorkloadItem> {
                 .collect(Collectors.joining("\n\n"));
     }
 
-    public class Challenge<T extends WorkloadItem> {
+    public class Challenge {
         private final Integer id;
         private volatile boolean isCompleted;
         private final String lastHash;
@@ -256,13 +259,6 @@ public class Blockchain<T extends WorkloadItem> {
 
         public Set<T> getWorkload() {
             return workload;
-        }
-
-        public Integer getLastWorkloadItemId() {
-            return workload.stream()
-                    .mapToInt(WorkloadItem::getId)
-                    .max()
-                    .orElse(0);
         }
 
         public boolean isCompleted() {

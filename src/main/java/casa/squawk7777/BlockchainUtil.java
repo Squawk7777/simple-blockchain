@@ -1,6 +1,7 @@
 package casa.squawk7777;
 
 import casa.squawk7777.exceptions.InvalidBlockException;
+import casa.squawk7777.workload.WorkloadItem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,7 +13,7 @@ public class BlockchainUtil {
     private static final Logger log = LoggerFactory.getLogger(BlockchainUtil.class);
     private BlockchainUtil() {}
 
-    public static <T extends WorkloadItem> Block<T> generateBlock(Blockchain<T>.Challenge<T> challenge, String miner) throws InvalidBlockException {
+    public static <T extends WorkloadItem> Block<T> generateBlock(Blockchain<T>.Challenge challenge, String miner) throws InvalidBlockException {
         log.debug("Seeking hash for block with {} messages starting with:\n{} (previous block hash: {})",
                 challenge.getWorkload().size(), challenge.getSeekingString(), challenge.getLastHash());
 

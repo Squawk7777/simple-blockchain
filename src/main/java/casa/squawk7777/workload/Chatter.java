@@ -1,5 +1,6 @@
-package casa.squawk7777;
+package casa.squawk7777.workload;
 
+import casa.squawk7777.SecurityHelper;
 import com.github.javafaker.Faker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,20 +12,20 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class Chatter extends RecursiveAction {
     private static final Logger log = LoggerFactory.getLogger(Chatter.class);
-    private static final Long MESSAGE_DELAY_MIN = 500L;
-    private static final Long MESSAGE_DELAY_MAX = 5000L;
+    private static final long MESSAGE_DELAY_MIN = 500L;
+    private static final long MESSAGE_DELAY_MAX = 2000L;
 
-    private KeyPair keys;
-    private transient Chat chat;
-    private transient Faker faker;
-    private Integer messageLimit;
+    private final transient Chat chat;
+    private final transient Faker faker;
+    private final KeyPair keys;
 
+    private int messagesLeft;
 
-    public Chatter(KeyPair keys, Chat chat, Faker faker, Integer messageLimit) {
+    public Chatter(KeyPair keys, Chat chat, Faker faker, int messageLimit) {
         this.keys = keys;
         this.chat = chat;
         this.faker = faker;
-        this.messageLimit = messageLimit;
+        this.messagesLeft = messageLimit;
     }
 
     @Override
@@ -48,6 +49,6 @@ public class Chatter extends RecursiveAction {
             } catch (GeneralSecurityException e) {
                 log.debug("Unable to sign message: {}", e.getMessage(), e);
             }
-        } while (--messageLimit > 0);
+        } while (--messagesLeft > 0);
     }
 }

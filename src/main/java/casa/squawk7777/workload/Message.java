@@ -1,4 +1,4 @@
-package casa.squawk7777;
+package casa.squawk7777.workload;
 
 import java.security.PublicKey;
 import java.util.Arrays;
@@ -17,6 +17,7 @@ public class Message implements WorkloadItem {
         this.publicKey = publicKey;
     }
 
+    @Override
     public Integer getId() {
         return id;
     }

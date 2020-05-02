@@ -1,4 +1,4 @@
-package casa.squawk7777;
+package casa.squawk7777.workload;
 
 import java.util.Set;
 

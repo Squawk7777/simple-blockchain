@@ -1,22 +1,21 @@
 package casa.squawk7777;
 
-import java.io.Serializable;
+import casa.squawk7777.workload.WorkloadItem;
+
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class Block<T extends WorkloadItem> implements Serializable {
-    private Integer id;
-    private Integer complexity;
-    private Long salt;
-    private String hash;
-    private String miner;
-    private Set<T> data;
+public class Block<T extends WorkloadItem> {
+    private final Integer id;
+    private final Integer complexity;
+    private final Long salt;
+    private final String hash;
+    private final String miner;
+    private final Set<T> data;
 
     public Block(Integer id, String hash) {
-        this.id = id;
-        this.hash = hash;
-        this.data = new HashSet<>();
+        this(id, 1, 0L, hash, "", new HashSet<>());
     }
 
     public Block(Integer id, Integer complexity, Long salt, String hash, String miner, Set<T> data) {
