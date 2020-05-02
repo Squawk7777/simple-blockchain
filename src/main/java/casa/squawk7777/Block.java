@@ -1,22 +1,24 @@
 package casa.squawk7777;
 
-import java.io.Serializable;
-import java.util.Collection;
+import casa.squawk7777.workload.WorkloadItem;
 
-public class Block implements Serializable {
-    private Integer id;
-    private Integer complexity;
-    private Long salt;
-    private String hash;
-    private String miner;
-    private Collection<String> data;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+public class Block<T extends WorkloadItem> {
+    private final Integer id;
+    private final Integer complexity;
+    private final Long salt;
+    private final String hash;
+    private final String miner;
+    private final Set<T> data;
 
     public Block(Integer id, String hash) {
-        this.id = id;
-        this.hash = hash;
+        this(id, 1, 0L, hash, "", new HashSet<>());
     }
 
-    public Block(Integer id, Integer complexity, Long salt, String hash, String miner, Collection<String> data) {
+    public Block(Integer id, Integer complexity, Long salt, String hash, String miner, Set<T> data) {
         this.id = id;
         this.complexity = complexity;
         this.salt = salt;
@@ -41,7 +43,7 @@ public class Block implements Serializable {
         return hash;
     }
 
-    public Collection<String> getData() {
+    public Set<T> getData() {
         return data;
     }
 
@@ -52,6 +54,8 @@ public class Block implements Serializable {
                 "\nSalt: " + salt +
                 "\nMined by: " + miner +
                 "\nCurrent block hash:\n" + hash +
-                "\nMessages stored: " + String.join("\n", data);
+                "\nWorkload stored:\n" + data.stream()
+                .map(WorkloadItem::toString)
+                .collect(Collectors.joining("\n"));
     }
 }

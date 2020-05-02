@@ -3,50 +3,50 @@ package casa.squawk7777;
 import casa.squawk7777.exceptions.BlockchainException;
 import casa.squawk7777.exceptions.CorruptedChainException;
 import casa.squawk7777.exceptions.InvalidBlockException;
+import casa.squawk7777.exceptions.InvalidSignatureException;
+import casa.squawk7777.workload.WorkloadItem;
+import casa.squawk7777.workload.WorkloadSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Serializable;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 
-public class Blockchain implements Serializable {
+public class Blockchain<T extends WorkloadItem> {
     private static final Logger log = LoggerFactory.getLogger(Blockchain.class);
-    private transient Consumer<Blockchain> onAddBlockEventListener;
-    private transient Chat chat;
+    private static final Long MIN_TIME_GAP = 5000L;
+    private static final Long MAX_TIME_GAP = 30000L;
+    private static final Integer CHAIN_CAPACITY = 10;
+    private static final Integer MAX_COMPLEXITY = 6;
+    private static final Integer INITIAL_COMPLEXITY = 1;
 
-    private final List<Block> chain;
+    private final WorkloadSupplier<T> supplier;
+    private final List<Block<T>> chain;
     private final AtomicInteger complexity;
-    private final String SEEKING_ALNUM = "0";
+    private final String seekingAlNum = "0";
+    private final ReentrantLock offeringLock;
 
     private Long lastBlockTime;
     private Challenge challenge;
 
-    private final Long MIN_TIME_GAP = 5000L;
-    private final Long MAX_TIME_GAP = 30000L;
-
-    private final Integer chainCapacity = 10;
-
-    private final ReentrantLock offeringLock;
-    private final Integer maxComplexity = 6;
-
-    public Blockchain(Integer initialComplexity) {
-        log.debug("Initializing blockchain with initial complexity at: {}", initialComplexity);
-        complexity = new AtomicInteger(initialComplexity);
+    public Blockchain(WorkloadSupplier<T> workloadSupplier) {
+        log.debug("Initializing blockchain with initial complexity at: {}", INITIAL_COMPLEXITY);
+        supplier = workloadSupplier;
+        complexity = new AtomicInteger(INITIAL_COMPLEXITY);
         chain = new ArrayList<>();
         lastBlockTime = System.currentTimeMillis();
         offeringLock = new ReentrantLock(true);
-        challenge = new Challenge(1, "0", complexity.get(), getSeekingString(), new ArrayList<>());
+        challenge = new Challenge(1, "0", complexity.get(), getSeekingString(), new HashSet<>());
     }
 
-    public void offerBlock(Block block) throws InvalidBlockException, BlockchainException {
+    public void offerBlock(Block<T> block) throws InvalidBlockException, BlockchainException {
         if (isClosed()) {
             throw new BlockchainException("Cannot accept new block. Blockchain is full");
         }
@@ -60,24 +60,13 @@ public class Blockchain implements Serializable {
             chain.add(block);
 
             refreshChallenge();
-
-            if (Objects.nonNull(onAddBlockEventListener)) {
-                onAddBlockEventListener.accept(this);
-            }
         } finally {
             offeringLock.unlock();
         }
     }
 
     public boolean isClosed() {
-        if (chain.size() >= chainCapacity) {
-            return true;
-        }
-        return false;
-    }
-
-    public void setChat(Chat chat) {
-        this.chat = chat;
+        return chain.size() >= CHAIN_CAPACITY;
     }
 
     public Integer getComplexity() {
@@ -85,25 +74,21 @@ public class Blockchain implements Serializable {
     }
 
     public String getSeekingString() {
-        return SEEKING_ALNUM.repeat(complexity.get());
+        return seekingAlNum.repeat(complexity.get());
     }
 
-    public Block getLastBlock() {
+    public Block<T> getLastBlock() {
         if (chain.isEmpty()) {
-            return new Block(0, "0");
+            return new Block<>(0, "0");
         }
         return chain.get(chain.size() - 1);
     }
 
-    public Block getBlockById(Integer id) {
+    public Block<T> getBlockById(Integer id) {
         if (id.equals(0)) {
-            return new Block(0, "0");
+            return new Block<>(0, "0");
         }
         return chain.get(id - 1);
-    }
-
-    public void setOnAddBlockEventListener(Consumer<Blockchain> onAddBlockEventListener) {
-        this.onAddBlockEventListener = onAddBlockEventListener;
     }
 
     public Integer getSize() {
@@ -119,13 +104,17 @@ public class Blockchain implements Serializable {
 
     public void refreshChallenge() {
         challenge.setCompleted();
-        Block lastBlock = getLastBlock();
-        challenge = new Challenge(lastBlock.getId() + 1, lastBlock.getHash(), getComplexity(), getSeekingString(), chat.fetchMessages());
+        Block<T> lastBlock = getLastBlock();
+        Set<T> workload = supplier.fetchWorkload();
+        challenge = new Challenge(lastBlock.getId() + 1, lastBlock.getHash(), getComplexity(), getSeekingString(), workload);
     }
 
-    private void verifyOfferedBlock(Block block) throws InvalidBlockException {
+    /**
+     * Checks offered block for compliance to required complexity and valid ID
+     */
+    private void verifyOfferedBlock(Block<T> block) throws InvalidBlockException {
         log.debug("Verifying offered block with hash: {} ", block.getHash());
-        Block lastBlock = getLastBlock();
+        Block<T> lastBlock = getLastBlock();
 
         Integer expectedId = lastBlock.getId() + 1;
         if (!block.getId().equals(expectedId)) {
@@ -139,33 +128,87 @@ public class Blockchain implements Serializable {
             throw new InvalidBlockException(TextConstants.NOT_MEET_COMPLEXITY);
         }
 
-        verifyBlockHash(block);
+        verifyBlock(block);
     }
 
-    private void verifyBlockHash(Block block) throws InvalidBlockException {
-        Block previousBlock = getBlockById(block.getId() - 1);
+    /**
+     * Verifies consistency of any block (resided in the chain or just offered to)
+     */
+    private void verifyBlock(Block<T> block) throws InvalidBlockException {
+        Block<T> previousBlock = getBlockById(block.getId() - 1);
         String calculatedHash = BlockchainUtil.calculateHash(block.getData().hashCode() + block.getComplexity() + block.getSalt() + previousBlock.getHash());
 
         if (!block.getHash().equals(calculatedHash)) {
             log.error("Block rejected. Hash ({}) differs from calculated ({})", block.getHash(), calculatedHash);
             throw new InvalidBlockException(TextConstants.HASH_DIFFERS_FROM_CALCULATED);
         }
+
+        verifyWorkload(block);
     }
 
+    /**
+     * Verifies block's workload by comparing lowest workload ID in it with highest
+     * workload ID from the previous block in the chain to prevent dupe-hack.
+     */
+    public void verifyWorkload(Block<T> block) throws InvalidBlockException {
+        Set<T> workload = block.getData();
+
+        if (!workload.isEmpty()) {
+            int lowestCurrentWorkloadId = workload.stream()
+                    .mapToInt(WorkloadItem::getId)
+                    .min()
+                    .orElseThrow(() -> new InvalidBlockException("Cannot determine lowest workload ID in this block"));
+
+            Block<T> previousBlock = getBlockById(block.getId() - 1);
+
+            while (previousBlock.getData().isEmpty() && !previousBlock.getId().equals(1)) {
+                previousBlock = getBlockById(previousBlock.getId() - 1);
+            }
+
+            int highestPreviousWorkloadId = previousBlock.getData().stream()
+                    .mapToInt(WorkloadItem::getId)
+                    .max()
+                    .orElse(0);
+
+            if (lowestCurrentWorkloadId <= highestPreviousWorkloadId) {
+                log.debug("Lowest Workload ID ({}) of currently verified block is lower or equals to highest workload ID ({}) of previous block in blockchain", lowestCurrentWorkloadId, highestPreviousWorkloadId);
+                throw new InvalidBlockException("Lowest Workload ID ({}) of currently verified block is lower or equals to highest workload ID ({}) of previous block in blockchain");
+            }
+
+            for (WorkloadItem workloadItem : workload) {
+                try {
+                    SecurityHelper.verifySignature(workloadItem.getId() + workloadItem.getData(),
+                            workloadItem.getSignature(),
+                            workloadItem.getPublicKey());
+                } catch (InvalidSignatureException e) {
+                    throw new InvalidBlockException("Workload item's signature is invalid: " + e.getMessage(), e);
+                } catch (GeneralSecurityException e) {
+                    throw new InvalidBlockException("Unable to verify workload item's signature: " + e.getMessage(), e);
+                }
+            }
+        }
+    }
+
+    /**
+     * Verifies all the blocks in the chain
+     */
     public void verifyChain() throws CorruptedChainException {
         try {
-            for (Block block : chain) {
-                verifyBlockHash(block);
+            for (Block<T> block : chain) {
+                verifyBlock(block);
             }
         } catch (InvalidBlockException e) {
             throw new CorruptedChainException(e.getMessage(), e);
         }
     }
 
+    /**
+     * Adjusts complexity value according to time gap between last added and currently offered blocks
+     */
     private void adjustComplexity() {
         long currentTimeGap = System.currentTimeMillis() - lastBlockTime;
         log.debug("Time gap from last added block: {} seconds (complexity: {})", (currentTimeGap / 1000), complexity.get());
-        if (currentTimeGap < MIN_TIME_GAP && complexity.get() < maxComplexity) {
+        if (currentTimeGap < MIN_TIME_GAP && complexity.get() < MAX_COMPLEXITY) {
             complexity.incrementAndGet();
         } else if (currentTimeGap > MAX_TIME_GAP && complexity.get() > 0) {
             complexity.decrementAndGet();
@@ -187,9 +230,9 @@ public class Blockchain implements Serializable {
         private final String lastHash;
         private final Integer complexity;
         private final String seekingString;
-        private final Collection<String> workload;
+        private final Set<T> workload;
 
-        private Challenge(Integer id, String lastHash, Integer complexity, String seekingString, Collection<String> workload) {
+        private Challenge(Integer id, String lastHash, Integer complexity, String seekingString, Set<T> workload) {
             this.id = id;
             this.isCompleted = false;
             this.lastHash = lastHash;
@@ -214,7 +257,7 @@ public class Blockchain implements Serializable {
             return seekingString;
         }
 
-        public Collection<String> getWorkload() {
+        public Set<T> getWorkload() {
             return workload;
         }
 
