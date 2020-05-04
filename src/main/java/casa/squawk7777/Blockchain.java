@@ -17,8 +17,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.StampedLock;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -28,7 +27,6 @@ public class Blockchain {
     private static final Logger log = LoggerFactory.getLogger(Blockchain.class);
     private static final long MIN_TIME_GAP = 5000L;
     private static final long MAX_TIME_GAP = 30000L;
-    private static final int CHAIN_CAPACITY = 10;
     private static final int MAX_COMPLEXITY = 5;
     private static final int REWARD_AMOUNT = 100;
     private static final int INITIAL_COMPLEXITY = 3;
@@ -40,25 +38,27 @@ public class Blockchain {
     private final Set<Transaction> transactionPool;
     private final AtomicInteger complexity;
     private final AtomicInteger lastTransactionId;
-    private final ReadWriteLock chainStateLock;
+    private final StampedLock stateLock;
     private volatile AtomicBoolean isChallengeDone;     // we have to be sure that reference is always fresh
 
     private long lastBlockTime;
-    private Consumer<Blockchain> onNewBlockEvent;
+    private int chainCapacity;
+    private Consumer<Blockchain> onCloseEventHandler;
 
-    public Blockchain() {
+    public Blockchain(int chainCapacity) {
+        this.chainCapacity = chainCapacity;
         this.chainOwner = new Miner(this, BLOCKCHAIN_MINER_TITLE);
+        this.chain = new ArrayList<>();
+        this.transactionPool = Collections.synchronizedSet(new TreeSet<>());
         this.complexity = new AtomicInteger(INITIAL_COMPLEXITY);
         this.lastTransactionId = new AtomicInteger(0);
+        this.stateLock = new StampedLock();
         this.isChallengeDone = new AtomicBoolean(false);
-        this.chain = new ArrayList<>();
         this.lastBlockTime = System.currentTimeMillis();
-        this.transactionPool = Collections.synchronizedSet(new TreeSet<>());
-        this.chainStateLock = new ReentrantReadWriteLock();
     }
 
-    public void setOnNewBlockEvent(Consumer<Blockchain> onNewBlockEvent) {
-        this.onNewBlockEvent = onNewBlockEvent;
+    public void setOnCloseEventHandler(Consumer<Blockchain> onCloseEventHandler) {
+        this.onCloseEventHandler = onCloseEventHandler;
     }
 
     public Integer getNextTransactionId() {
@@ -74,7 +74,7 @@ public class Blockchain {
 
     public long getBalance(Miner miner) {
         return getTransactionsBalance(chain.stream()
-                .flatMap(b -> b.getTransactions().stream()),
+                        .flatMap(b -> b.getTransactions().stream()),
                 miner);
     }
 
@@ -92,7 +92,7 @@ public class Blockchain {
     public void offerTransaction(Transaction transaction) throws TransactionException, GeneralSecurityException, InvalidSignatureException, InterruptedException {
         SecurityUtil.verifySignature(transaction);
 
-        chainStateLock.writeLock().lock();
+        long stamp = stateLock.writeLock();
         try {
             if (transactionPool.stream().anyMatch(t -> t.getId().equals(transaction.getId()))) {
                 throw new TransactionException("Transaction with such ID is already present");
@@ -109,7 +109,7 @@ public class Blockchain {
 
             transactionPool.add(transaction);
         } finally {
-            chainStateLock.writeLock().unlock();
+            stateLock.unlockWrite(stamp);
         }
     }
 
@@ -118,7 +118,7 @@ public class Blockchain {
             throw new BlockchainException("Blockchain is closed");
         }
 
-        chainStateLock.writeLock().lock();
+        long stamp = stateLock.writeLock();
         try {
             verifyOfferedBlock(block);
             log.info("Adding new block #{} with hash: {}", block.getId(), block.getHash());
@@ -128,9 +128,8 @@ public class Blockchain {
             transactionPool.removeAll(block.getTransactions());
             isChallengeDone.set(true);
             isChallengeDone = new AtomicBoolean(false);
-            onNewBlockEvent.accept(this);
         } finally {
-            chainStateLock.writeLock().unlock();
+            stateLock.unlockWrite(stamp);
         }
 
         Transaction t = block.getTransactions().stream().filter(b -> b.getSender().equals(chainOwner)).findAny().get();
@@ -140,7 +139,12 @@ public class Blockchain {
     }
 
     public boolean isClosed() {
-        return chain.size() >= CHAIN_CAPACITY;
+        boolean isClosed = chain.size() >= chainCapacity;
+        if (isClosed) {
+            log.debug("Blockchain is closed. Calling the onCloseEventHandler...");
+            onCloseEventHandler.accept(this);
+        }
+        return isClosed;
     }
 
     public String getSeekingString() {
@@ -170,25 +174,33 @@ public class Blockchain {
             throw new BlockchainException("No new challenges available");
         }
 
-        chainStateLock.readLock().lock();
-        try {
-            Block lastBlock = getLastBlock();
-            AtomicBoolean challengeDoneRef = isChallengeDone;
-            int complexityValue = complexity.get();
-            TreeSet<Transaction> transactions = new TreeSet<>(transactionPool);
-            Transaction rewardTransaction = getRewardTransaction(miner);
+        long stamp = stateLock.tryOptimisticRead();
+        Block lastBlock = getLastBlock();
+        AtomicBoolean challengeDoneRef = isChallengeDone;
+        int complexityValue = complexity.get();
+        TreeSet<Transaction> transactions = new TreeSet<>(transactionPool);
 
-            transactions.add(rewardTransaction);
-
-            return new Challenge(lastBlock.getId() + 1,
-                    lastBlock.getHash(),
-                    complexityValue,
-                    getSeekingString(),
-                    transactions,
-                    challengeDoneRef);
-        } finally {
-            chainStateLock.readLock().unlock();
+        if (!stateLock.validate(stamp)) {
+            stamp = stateLock.readLock();
+            try {
+                lastBlock = getLastBlock();
+                challengeDoneRef = isChallengeDone;
+                complexityValue = complexity.get();
+                transactions = new TreeSet<>(transactionPool);
+            } finally {
+                stateLock.unlockRead(stamp);
+            }
         }
+
+        Transaction rewardTransaction = getRewardTransaction(miner);
+        transactions.add(rewardTransaction);
+
+        return new Challenge(lastBlock.getId() + 1,
+                lastBlock.getHash(),
+                complexityValue,
+                getSeekingString(),
+                transactions,
+                challengeDoneRef);
     }
 
     /**
