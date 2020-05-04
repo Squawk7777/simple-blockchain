@@ -9,37 +9,35 @@ import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.Signature;
 import java.util.Base64;
 
-public class SecurityHelper {
-    private static final Logger log = LoggerFactory.getLogger(SecurityHelper.class);
+public class SecurityUtil {
+    private static final Logger log = LoggerFactory.getLogger(SecurityUtil.class);
     private static final String DEFAULT_ALGORITHM = "RSA";
     private static final Integer DEFAULT_KEY_SIZE = 1024;
 
-    private SecurityHelper() {}
+    private SecurityUtil() {}
 
-    public static byte[] signData(String data, PrivateKey privateKey) throws GeneralSecurityException {
+    public static void sign(Signable signable, KeyPair keyPair) throws GeneralSecurityException {
         Signature signature = Signature.getInstance("SHA256withRSA");
-        signature.initSign(privateKey);
-        signature.update(data.getBytes(StandardCharsets.UTF_8));
+        signature.initSign(keyPair.getPrivate());
+        signature.update(signable.getDigest().getBytes(StandardCharsets.UTF_8));
         byte[] dataSignature = signature.sign();
         if (log.isDebugEnabled()) {
-            log.debug("Generated data signature: {}", Base64.getEncoder().encodeToString(dataSignature));
+            log.trace("Generated data signature: {}", Base64.getEncoder().encodeToString(dataSignature));
         }
-        return dataSignature;
+        signable.sign(dataSignature, keyPair.getPublic());
     }
 
-    public static void verifySignature(String data, byte[] dataSignature, PublicKey publicKey) throws GeneralSecurityException, InvalidSignatureException {
+    public static void verifySignature(Signable signable) throws GeneralSecurityException, InvalidSignatureException {
         Signature signature = Signature.getInstance("SHA256withRSA");
-        signature.initVerify(publicKey);
-        signature.update(data.getBytes(StandardCharsets.UTF_8));
-        if (!signature.verify(dataSignature)) {
+        signature.initVerify(signable.getPublicKey());
+        signature.update(signable.getDigest().getBytes(StandardCharsets.UTF_8));
+        if (!signature.verify(signable.getSignature())) {
             throw new InvalidSignatureException("Signature for this data is invalid!");
         }
-        log.debug("Data signature successfully verified.");
+        log.trace("Data signature successfully verified.");
     }
 
     public static KeyPair generateKeyPair() {
@@ -47,7 +45,7 @@ public class SecurityHelper {
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(DEFAULT_ALGORITHM);
             keyPairGenerator.initialize(DEFAULT_KEY_SIZE);
             KeyPair keyPair = keyPairGenerator.generateKeyPair();
-            log.debug("Generated KeyPair with Public key: {}", keyPair.getPublic());
+            log.trace("Generated KeyPair with Public key: {}", keyPair.getPublic());
             return keyPair;
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);

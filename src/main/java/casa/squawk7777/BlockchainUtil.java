@@ -1,7 +1,6 @@
 package casa.squawk7777;
 
 import casa.squawk7777.exceptions.InvalidBlockException;
-import casa.squawk7777.workload.WorkloadItem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,23 +12,23 @@ public class BlockchainUtil {
     private static final Logger log = LoggerFactory.getLogger(BlockchainUtil.class);
     private BlockchainUtil() {}
 
-    public static <T extends WorkloadItem> Block<T> generateBlock(Blockchain<T>.Challenge challenge, String miner) throws InvalidBlockException {
+    public static Block generateBlock(Blockchain.Challenge challenge, String miner) throws InvalidBlockException {
         log.debug("Seeking hash for block with {} messages starting with:\n{} (previous block hash: {})",
-                challenge.getWorkload().size(), challenge.getSeekingString(), challenge.getLastHash());
+                challenge.getTransactions().size(), challenge.getSeekingString(), challenge.getLastHash());
 
         String currentHash = "";
         long salt = 0L;
 
         while (!currentHash.startsWith(challenge.getSeekingString())) {
-            if (challenge.isCompleted()) {
+            if (challenge.isDone()) {
                 throw new InvalidBlockException("Generation aborted. Current challenge is completed, asking for new...");
             }
             salt = ThreadLocalRandom.current().nextLong(0, Long.MAX_VALUE);
-            currentHash = calculateHash(challenge.getWorkload().hashCode() + challenge.getComplexity() + salt + challenge.getLastHash());
+            currentHash = calculateHash(challenge.getTransactions().hashCode() + challenge.getComplexity() + salt + challenge.getLastHash());
         }
         log.debug("Found appropriate hash\n({}) with salt: {}", currentHash, salt);
 
-        return new Block<>(challenge.getId(), challenge.getComplexity(), salt, currentHash, miner, challenge.getWorkload());
+        return new Block(challenge.getNextBlockId(), challenge.getComplexity(), salt, currentHash, miner, challenge.getTransactions());
     }
 
     public static String calculateHash(String input) {
