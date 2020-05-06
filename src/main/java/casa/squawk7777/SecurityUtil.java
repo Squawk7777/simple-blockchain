@@ -35,9 +35,9 @@ public class SecurityUtil {
         signature.initVerify(signable.getPublicKey());
         signature.update(signable.getDigest().getBytes(StandardCharsets.UTF_8));
         if (!signature.verify(signable.getSignature())) {
-            throw new InvalidSignatureException("Signature for this data is invalid!");
+            throw new InvalidSignatureException(TextConstants.SIGNATURE_IS_INVALID);
         }
-        log.trace("Data signature successfully verified.");
+        log.debug("Data signature successfully verified.");
     }
 
     public static KeyPair generateKeyPair() {
@@ -48,7 +48,7 @@ public class SecurityUtil {
             log.trace("Generated KeyPair with Public key: {}", keyPair.getPublic());
             return keyPair;
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException(TextConstants.UNABLE_TO_GENERATE_KEYS);
         }
     }
 }
